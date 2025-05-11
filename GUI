@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Control Dashboard</title>
+    <style>
+        /* --- Global Styles & Layout --- */
+        html, body {
+            height: 100%; margin: 0; overflow: hidden;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            padding: 15px; color: #e0e0e0; display: flex; flex-direction: column;
+            box-sizing: border-box;
+            font-size: 24px;
+        }
+
+/* Master Power Controls Bar - Fixed at the top, sized to match main content area */
+    #master-power-controls {
+        position: fixed;
+        top: 0px;
+        /* --- Align with body's horizontal padding and dashboard's max-width --- */
+        left: 15px;
+        right: 15px;
+        width: auto;
+        margin-left: auto;
+        margin-right: auto;
+        max-width: 1800px;
+        /* --- End alignment --- */
+        background-color: #1f1f1f;
+        padding: 10px 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        z-index: 999;
+        border-bottom: 1px solid #333;
+        box-sizing: border-box;
+    }
+    #master-power-controls .kill-pcc-container {
+        flex-basis: 30%;
+        margin-right: 15px;
+    }
+    #master-power-controls #killPccBtn {
+        width: 100%; background-color: #e74c3c; color: white;
+        padding: 12px 10px; font-size: 24px; font-weight: bold;
+        text-transform: uppercase; letter-spacing: 1.5px;
+        box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+        border: none; border-radius: 6px; cursor: pointer; transition: all 0.3s;
+    }
+    #master-power-controls #killPccBtn:hover:not(:disabled) {
+        background-color: #c0392b;
+        box-shadow: 0 4px 20px rgba(192, 57, 43, 0.5);
+    }
+    #master-power-controls #killPccBtn:disabled {
+        background-color: #b83b2e;
+        color: #aaa; cursor: not-allowed; opacity: 0.7;
+        box-shadow: 0 2px 5px rgba(231, 76, 60, 0.2);
+    }
+    /* Note: JS also sets a specific red (#dc3545) when state is KILLED */
+
+
+    #master-power-controls .power-buttons-main-container {
+        display: flex;
+        gap: 10px;
+        flex-grow: 1;
+    }
+    .power-btn-main {
+        flex-grow: 1;
+        padding: 12px 20px; border: none; border-radius: 6px;
+        font-size: 24px; font-weight: bold; cursor: pointer;
+        transition: all 0.3s; text-transform: uppercase; letter-spacing: 1px;
+        background-color: #4a4a4a; color: #ccc;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .power-btn-main:hover:not(:disabled) { background-color: #5a5a5a; }
+    .power-btn-main:disabled {
+        background-color: #3a3a3a; color: #777; cursor: not-allowed; box-shadow: none;
+    }
+    #robotOnBtn.active,
+    #robotStandbyBtn.active {
+        background-color: #46637f;
+        color: white;
+        box-shadow: 0 0 12px rgba(70, 99, 127, 0.4);
+    }
+
+
+    .dashboard-container { /* Main content grid */
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 15px;
+        flex-grow: 1; max-width: 1800px; margin: 0 auto;
+        height: calc(100% - 40px);
+        box-sizing: border-box; overflow: hidden;
+        margin-top: 70px; /* Account for fixed top bar */
+    }
+    .dashboard-module { /* Styling for individual panels */
+        background-color: #282828; border-radius: 8px; padding: 15px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); border: 1px solid #383838;
+        display: flex; flex-direction: column; overflow: hidden;
+    }
+     .module-title {
+         text-align: center; color: #f0f0f0; margin-bottom: 15px; font-size: 30px;
+         font-weight: 600; letter-spacing: 0.5px; text-shadow: 0 0 5px rgba(255, 255, 255, 0.1);
+         margin-top: 0; flex-shrink: 0;
+     }
+
+    .right-column { /* Container for stacked modules on the right */
+        grid-column: 2 / 3; grid-row: 1 / 3;
+        display: flex; flex-direction: column; gap: 15px; overflow: hidden;
+    }
+
+    /* --- Laser Cutter Module --- */
+     #laser-cutter-module { grid-row: 1 / 2; grid-column: 1 / 2; }
+     #laser-cutter-module .graph-container { /* For temperature histogram */
+         flex-grow: 1; min-height: 150px; border: 1px solid #444; margin-bottom: 15px;
+         position: relative; overflow: hidden; background-color: #222;
+         border-radius: 5px; display: flex;
+     }
+     #laser-cutter-module .temperature-histogram-data {
+         display: flex; flex-direction: row; align-items: flex-end;
+         width: 100%; height: 100%;
+         position: relative; z-index: 1;
+         overflow: hidden;
+     }
+     #laser-cutter-module .histogram-bar {
+         transition: height 0.15s linear, background-color 0.2s ease, transform 0.15s linear;
+         flex-shrink: 0;
+     }
+     #laser-cutter-module .temp-zone { /* Visual temperature zones overlay on graph */
+         position: absolute; left: 0; width: 100%;
+         z-index: 2;
+         box-sizing: border-box; display: flex; align-items: center;
+         justify-content: flex-end; padding-right: 8px;
+         font-size: 15px; color: rgba(255,255,255,0.75);
+         text-transform: uppercase; font-weight: 500;
+     }
+     #laser-cutter-module .normal-zone { background-color: rgba(60, 120, 60, 0.2); bottom: 0; }
+     #laser-cutter-module .caution-zone { background-color: rgba(255, 193, 7, 0.2); }
+     #laser-cutter-module .critical-zone { background-color: rgba(220, 53, 69, 0.2); }
+
+     #laser-cutter-module .status-container { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 15px; flex-shrink: 0; }
+     #laser-cutter-module .button-container { display: flex; gap: 10px; }
+     #laser-cutter-module button { padding: 12px 28px; border: none; border-radius: 6px; font-size: 21px; cursor: pointer; transition: all 0.3s; font-weight: bold; text-transform: uppercase; letter-spacing: 1.2px; flex-shrink: 0; background-color: #4a4a4a; color: #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+     
+     #laser-cutter-module .button-container button { /* Make ON/OFF buttons equal size */
+        flex-grow: 1;
+        flex-basis: 0;
+     }
+
+     #laser-cutter-module button:hover:not(:disabled) { background-color: #5a5a5a; }
+     #laser-cutter-module button:disabled { background-color: #3a3a3a; color: #777; cursor: not-allowed; box-shadow: none; }
+     
+     #laser-cutter-module #onBtn.active,
+     #laser-cutter-module #offBtn.active {
+         background-color: #46637f;
+         color: white;
+         box-shadow: 0 0 12px rgba(70, 99, 127, 0.4);
+     }
+
+     #laser-cutter-module .laser-status-display { padding: 10px 12px; border-radius: 5px; font-weight: bold; text-align: center; flex-grow: 1; margin-left: 10px; transition: all 0.5s; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.2); font-size: 20px; }
+     #laser-cutter-module .temperature-display { font-size: 33px; font-weight: bold; text-align: center; margin: 10px 0; text-shadow: 0 0 5px rgba(255, 255, 255, 0.1); flex-shrink: 0; }
+    
+     #laser-cutter-module .torch-ready { /* Torch status: Ready */
+        background-color: #5a5a5a;
+        color: #cccccc;
+        border: 1px solid #484848;
+     }
+     #laser-cutter-module .torch-active { /* Torch status: Active */
+        background-color: rgba(40, 167, 69, 0.2);
+        color: #8aff9d;
+        border: 1px solid #28a745;
+     }
+
+     #laser-cutter-module .caution { background-color: rgba(255, 193, 7, 0.2); color: #ffdf7e; border: 1px solid #ffc107; animation: pulse-caution 2s infinite; }
+     #laser-cutter-module .critical { background-color: rgba(220, 53, 69, 0.2); color: #ff8a8a; border: 1px solid #dc3545; animation: pulse-critical 1s infinite; }
+     
+     #laser-cutter-module .robot-off, 
+     #laser-cutter-module .robot-standby { 
+        background-color: #5a5a5a;
+        color: #cccccc;
+        border: 1px solid #484848;
+     }
+     /* Pulsing animations for temperature warnings */
+     @keyframes pulse-caution { 0% { box-shadow: 0 0 5px rgba(255, 193, 7, 0); } 50% { box-shadow: 0 0 15px rgba(255, 193, 7, 0.4); } 100% { box-shadow: 0 0 5px rgba(255, 193, 7, 0); } }
+     @keyframes pulse-critical { 0% { box-shadow: 0 0 5px rgba(220, 53, 69, 0); } 50% { box-shadow: 0 0 20px rgba(220, 53, 69, 0.6); } 100% { box-shadow: 0 0 5px rgba(220, 53, 69, 0); } }
+
+    /* --- System Readiness Module --- */
+     #system-readiness-module { grid-row: 2 / 3; grid-column: 1 / 2; overflow: hidden; }
+     #system-readiness-module .content-row { display: flex; gap: 15px; flex-grow: 1; min-height: 0; overflow: hidden; margin-top: 0; }
+     #system-readiness-module .systems-list { /* List of system statuses */
+         flex: 1; background-color: #303030; border-radius: 6px; padding: 10px; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+         display: flex; flex-direction: column; overflow-y: auto; min-height: 0;
+     }
+     #system-readiness-module .systems-title { /* Sticky title for the systems list */
+         font-size: 20px; font-weight: 600; margin-bottom: 10px; color: #e0e0e0; border-bottom: 1px solid #404040; padding-bottom: 6px;
+         flex-shrink: 0; position: sticky; top: -10px; background-color: #303030; z-index: 1; padding-top: 5px;
+     }
+     #system-readiness-module .system-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #383838; flex-shrink: 0; }
+     #system-readiness-module .system-item:last-child { border-bottom: none; }
+     #system-readiness-module .system-name { font-size: 18px; color: #d0d0d0; margin-right: 10px; }
+     #system-readiness-module .system-status-light { /* Small status indicator lights */
+         width: 12px; height: 12px; border-radius: 50%; background-color: #5c656d;
+         box-shadow: none; flex-shrink: 0; transition: background-color 0.3s, box-shadow 0.3s;
+     }
+     #system-readiness-module .status-panel { /* Panel next to system list, for motor control & battery */
+         flex: 1; background-color: #303030; border-radius: 6px; padding: 10px;
+         box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15); display: flex; flex-direction: column;
+         gap: 15px; min-height: 0;
+     }
+     #system-readiness-module .battery-container { flex-shrink: 0; }
+     #system-readiness-module .battery-title { font-size: 20px; font-weight: 600; margin-bottom: 8px; color: #e0e0e0; }
+     #system-readiness-module .battery-level {
+         height: 18px; background-color: #202020; border-radius: 9px; overflow: hidden; position: relative; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+     }
+     #system-readiness-module .battery-fill { /* The colored part of the battery bar showing level */
+        height: 100%;
+        width: 75%; /* Initial width */
+        background: linear-gradient(90deg, #3E8E41, #5A9E5E);
+        border-radius: 9px;
+        transition: width 0.5s ease, background 0.5s ease;
+        position: relative;
+        overflow: hidden;
+    }
+     #system-readiness-module .battery-fill::after { /* Subtle glowing/shine effect on battery */
+         content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+         background: linear-gradient(90deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.05) 100%);
+         animation: batteryGlow 2s infinite linear;
+     }
+     @keyframes batteryGlow { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+     #system-readiness-module .battery-percent { text-align: right; font-size: 17px; margin-top: 4px; color: #999; }
+
+    /* --- Styles for Motor Control (within #system-readiness-module) --- */
+    #system-readiness-module .motor-control-block { /* Contains robot tracks and status indicator */
+        display: flex; flex-direction: column;
+        gap: 10px;
+        flex-grow: 1;
+        min-height: 0;
+        align-items: center;
+    }
+    #system-readiness-module .motor-control-title-sub {
+        font-size: 20px; font-weight: 600; color: #e0e0e0;
+        text-align: center; margin-bottom: 10px;
+        flex-shrink: 0;
+    }
+    #system-readiness-module .robot-container { /* For tracks and direction indicator */
+        display: flex; justify-content: center; align-items: center;
+        gap: 30px;
+        flex-shrink: 0;
+    }
+    #system-readiness-module .track { /* Visual representation of robot tracks */
+        width: 50px;
+        height: 200px;
+        background-color: #2b2b2b; border-radius: 5px;
+        position: relative;
+        background-image: repeating-linear-gradient( #2b2b2b, #2b2b2b 5px, #484848 5px, #484848 20px ); /* Creates track pattern */
+        background-size: 100% 20px;
+        animation-name: scrollTread; animation-duration: 0.4s; /* Animation for track movement */
+        animation-timing-function: linear; animation-iteration-count: infinite;
+        animation-play-state: paused; /* Paused by default */
+        transition: box-shadow 0.3s ease;
+    }
+    #system-readiness-module .track.track-moving { /* Style when track is moving */
+        box-shadow: 0 0 12px 3px rgba(160, 200, 214, 0.7);
+    }
+    @keyframes scrollTread { /* Defines the track scrolling animation */
+        from { background-position-y: 0; }
+        to { background-position-y: -20px; }
+    }
+    #system-readiness-module .indicator { /* Directional indicator (arrow/stop icon) */
+        font-size: 50px;
+        font-weight: bold;
+        width: 90px; height: 90px;
+        display: flex; align-items: center; justify-content: center;
+        border: 4px solid #404040;
+        border-radius: 50%; background-color: #1e1e1e;
+        user-select: none;
+        transition: color 0.2s ease, border-color 0.2s ease;
+        color: #666;
+    }
+    #system-readiness-module .indicator .stop-icon { /* SVG for stop icon */
+        width: 55%; height: 55%;
+        stroke-width: 3.5; stroke: currentColor;
+    }
+    #system-readiness-module .indicator.active-movement { /* Style when robot is actively moving */
+        color: #ccc;
+        border-color: #555;
+    }
+    #system-readiness-module .status { /* Text status for movement */
+        margin-top: 10px;
+        font-size: 22px;
+        flex-shrink: 0; text-align: center; width: 100%; color: #bbb;
+    }
+    #system-readiness-module .controls-instructions { /* e.g., "Use WASD" */
+        padding-top: 5px;
+        font-size: 18px;
+        color: #888; flex-shrink: 0; text-align: center; width: 100%;
+    }
+
+    /* --- Robot Mapping Module --- */
+     #robot-mapping-module {
+        flex-grow: 5; /* Takes up more vertical space */
+        flex-basis: 0;
+        min-height: 150px;
+        display: flex; flex-direction: column;
+     }
+     #robot-mapping-module .canvas-container { /* Container for the map canvas */
+         width: 100%; flex-grow: 1; overflow: hidden;
+         border: 1px solid #444; background-color: #0a0c0e;
+         display: flex; justify-content: center; align-items: center;
+         margin-bottom: 10px; min-height: 0; position: relative;
+     }
+     #robot-mapping-module canvas { display: block; border: none; }
+     #robot-mapping-module .robot-controls { margin-top: auto; padding-top: 10px; display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; flex-shrink: 0; width: 100%; }
+     #robot-mapping-module .controls-text { font-size: 18px; color: #999; }
+     #robot-mapping-module .robot-controls button { padding: 6px 12px; font-weight: bold; background-color: #404040; color: #ddd; border: none; border-radius: 4px; cursor: pointer; font-size: 18px; }
+     #robot-mapping-module .robot-controls button:hover { background-color: #555; }
+
+    /* --- Camera Control Module --- */
+     #camera-control-module {
+        flex-grow: 0.9;
+        flex-basis: 0; flex-shrink: 1; min-height: 0;
+        padding: 15px;
+     }
+     .camera-slider-container { /* Container for camera sliders */
+         display: flex; flex-direction: column; gap: 15px; padding: 10px 15px;
+         background-color: #202020; border-radius: 6px; border: 1px solid #3a3a3a; margin-top: 10px;
+     }
+     .slider-group { display: flex; align-items: center; gap: 10px; }
+     .slider-group label {
+        font-size: 20px; color: #bbb;
+        width: 150px;
+        text-align: right; flex-shrink: 0;
+    }
+     .slider-group input[type="range"] { flex-grow: 1; accent-color: #6c92b8; cursor: ew-resize; }
+     .slider-group input[type="range"]:disabled { cursor: not-allowed; opacity: 0.5; }
+     .slider-group .value-display {
+         font-size: 20px; color: #ddd; font-weight: bold;
+         min-width: 50px; text-align: right;
+     }
+
+    /* --- Utilities Module Styles --- */
+    #utilities-module {
+        flex-grow: 1.1;
+        flex-basis: 0; flex-shrink: 1; min-height: 0;
+        display: flex; flex-direction: column;
+    }
+    #utilities-module .utility-buttons-container { /* Grid for utility buttons */
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); /* Responsive grid */
+        gap: 8px;
+        margin-top: 5px;
+        flex-grow: 1;
+        overflow-y: auto; /* Scroll if many buttons */
+        padding: 5px;
+    }
+    #utilities-module .utility-button {
+        padding: 15px; border: none; border-radius: 5px;
+        font-size: 18px; font-weight: 600; cursor: pointer;
+        transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+        background-color: #46637f;
+        color: white;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        text-align: center;
+    }
+    #utilities-module .utility-button:hover:not(.active) {
+        background-color: #5a7ba0;
+    }
+    #utilities-module .utility-button.active {
+        background-color: #a0c8d6;
+        color: #000;
+        box-shadow: 0 0 8px rgba(160, 200, 214, 0.5);
+    }
+
+    /* --- Gamepad Status & Feedback Styles --- */
+    #gamepad-status {
+        margin-top: 10px; font-style: italic; color: #999; background-color: #282828;
+        padding: 10px 15px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        text-align: center; border: 1px solid #383838; flex-shrink: 0;
+        font-size: 18px;
+    }
+    .active-input { /* Generic style for elements actively controlled by gamepad */
+        background-color: #a0c8d6 !important; color: #000 !important; transform: scale(0.95);
+        transition: background-color 0.1s ease, transform 0.1s ease;
+    }
+    .power-btn-main.active-input,
+    #master-power-controls #killPccBtn.active-input {
+         box-shadow: 0 0 10px rgba(160, 200, 214, 0.6) !important;
+    }
+    #laser-cutter-module button.active-input {
+         background-color: #a0c8d6 !important; color: #000 !important;
+         box-shadow: 0 0 10px rgba(160, 200, 214, 0.6) !important;
+    }
+    .camera-slider-container.active-input input[type="range"] {
+        box-shadow: 0 0 8px rgba(160, 200, 214, 0.5);
+    }
+    .camera-slider-container.active-input {
+         background-color: #333;
+         transition: background-color 0.1s ease;
+    }
+</style>
+
+</head>
+<body>
+
+<!-- Master power controls at the top -->
+<div id="master-power-controls">
+    <div class="kill-pcc-container"><button id="killPccBtn">EMERGENCY KILL PCC</button></div>
+    <div class="power-buttons-main-container">
+        <button class="power-btn-main" id="robotOnBtn">ROBOT ON</button>
+        <button class="power-btn-main" id="robotStandbyBtn">ROBOT STANDBY</button>
+    </div>
+</div>
+
+ <!-- Main dashboard area with modules -->
+ <div class="dashboard-container">
+    <!-- Laser Cutter Control Module -->
+    <div id="laser-cutter-module" class="dashboard-module">
+         <h1 class="module-title">Cutting Torch Control</h1>
+         <div class="graph-container">
+             <div class="temperature-histogram-data" id="temperatureHistogramData"></div>
+         </div>
+         <div class="temperature-display"> Temp: <span id="tempValue">0</span>°C </div>
+         <div class="status-container">
+             <div class="button-container">
+                 <button id="onBtn" disabled>ON</button>
+                 <button id="offBtn" disabled>OFF</button>
+             </div>
+             <div class="laser-status-display robot-standby" id="laserStatusIndicator"> ROBOT STANDBY </div>
+         </div>
+    </div>
+    <!-- System Readiness Module -->
+    <div id="system-readiness-module" class="dashboard-module">
+         <h1 class="module-title">Robot System Details</h1>
+         <div class="content-row">
+             <div class="systems-list">
+                 <div class="systems-title">ROBOT SYSTEMS STATUS</div>
+                 <div class="system-item"><span class="system-name">Pwr Ctrl Eng 1</span><div class="system-status-light"></div></div>
+                 <div class="system-item"><span class="system-name">Pwr Ctrl Eng 2</span><div class="system-status-light"></div></div>
+                 <div class="system-item"><span class="system-name">Camera Feed</span><div class="system-status-light"></div></div>
+                 <div class="system-item"><span class="system-name">Buck Converter</span><div class="system-status-light"></div></div>
+                 <div class="system-item"><span class="system-name">Camera Pan Servo</span><div class="system-status-light" data-servo-id="servo1"></div></div>
+                 <div class="system-item"><span class="system-name">Camera Tilt Servo</span><div class="system-status-light" data-servo-id="servo2"></div></div>
+                 <div class="system-item"><span class="system-name">Torch Angle Servo</span><div class="system-status-light" data-servo-id="servo3"></div></div>
+                 <div class="system-item"><span class="system-name">Laser Cooling</span><div class="system-status-light"></div></div>
+             </div>
+             <div class="status-panel">
+                 <div class="motor-control-block">
+                    <div class="motor-control-title-sub">Robot Movement Control</div>
+                    <div class="robot-container">
+                        <div id="leftTrack" class="track"></div>
+                        <div id="movementIndicator" class="indicator">
+                            <!-- Stop icon will be set by JS -->
+                        </div>
+                        <div id="rightTrack" class="track"></div>
+                    </div>
+                    <div class="status" id="movementStatus"></div>
+                    <div class="controls-instructions"></div>
+                </div>
+                 <div class="battery-container">
+                     <div class="battery-title">POWER SYSTEM STATUS</div>
+                     <div class="battery-level"><div class="battery-fill"></div></div>
+                     <div class="battery-percent">75% CHARGE</div>
+                 </div>
+             </div>
+         </div>
+    </div>
+
+    <!-- Right column for map, camera, and utilities -->
+    <div class="right-column">
+        <div id="robot-mapping-module" class="dashboard-module">
+            <h1 class="module-title">Crawler Robot Map (4m x 2m)</h1>
+            <div class="canvas-container"><canvas id="mapCanvas"></canvas></div>
+            <div class="robot-controls">
+            </div>
+        </div>
+        <div id="camera-control-module" class="dashboard-module">
+            <h1 class="module-title">Camera Servos</h1>
+            <div id="camera-slider-container" class="camera-slider-container">
+                <div class="slider-group">
+                    <label for="cameraYawSlider">Camera Yaw:</label>
+                    <input type="range" id="cameraYawSlider" min="-90" max="90" value="0" step="1" disabled>
+                    <span class="value-display" id="yawValueDisplay">0°</span>
+                </div>
+                <div class="slider-group">
+                    <label for="cameraPitchSlider">Camera Pitch:</label>
+                    <input type="range" id="cameraPitchSlider" min="-90" max="90" value="0" step="1" disabled>
+                    <span class="value-display" id="pitchValueDisplay">0°</span>
+                </div>
+            </div>
+        </div>
+        <div id="utilities-module" class="dashboard-module">
+            <h1 class="module-title">Utility Controls</h1>
+            <div class="utility-buttons-container">
+                <button class="utility-button" id="utilBtnLaserCooling">Laser Cooling</button>
+                <button class="utility-button" id="utilBtnShieldBoost">Low Gear</button>
+                <button class="utility-button" id="utilBtnSensorArray">Sensor Array</button>
+                <button class="utility-button" id="utilBtnEcmJammer">Camera Feed</button>
+                <button class="utility-button" id="utilBtnTractorBeam">Torque Lock</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="gamepad-status">No Gamepad Detected</div>
+
+<script>
+    // --- Global Robot State & Movement Variables ---
+    // These variables manage the overall state of the robot and user input.
+    let robotGlobalState = "STANDBY"; // Possible states: "ON", "STANDBY", "KILLED"
+    const keys = { w: false, a: false, s: false, d: false }; // Tracks pressed state of movement keys
+    let currentSentMoveAction = 'stop_standby'; // Stores the last movement action *sent* to the robot to avoid redundant commands
+
+    // Servo constants: angles for torch, and IDs for various servos
+    const TORCH_SERVO_ON_ANGLE = 45;
+    const TORCH_SERVO_OFF_ANGLE = -45;
+    const CAMERA_PAN_SERVO_ID = 'servo1';
+    const CAMERA_TILT_SERVO_ID = 'servo2';
+    const TORCH_ANGLE_SERVO_ID = 'servo3';
+
+    // Variables for smooth camera control, especially with gamepad
+    let targetYaw = 0; let targetPitch = 0; // Target angles for camera
+    let lastSentYaw = 0; let lastSentPitch = 0; // Last angles sent to servos
+    const CAMERA_SEND_THRESHOLD = 1; // Min change in angle before sending a new servo command
+    const CAMERA_MOVE_SPEED_PER_FRAME = 0.3; // How fast the camera moves per frame with gamepad input
+
+    // Cache DOM elements for frequent access (performance)
+    const killPccBtn = document.getElementById('killPccBtn');
+    const robotOnBtn = document.getElementById('robotOnBtn');
+    const robotStandbyBtn = document.getElementById('robotStandbyBtn');
+    const yawSlider = document.getElementById('cameraYawSlider');
+    const pitchSlider = document.getElementById('cameraPitchSlider');
+    const yawValueDisplay = document.getElementById('yawValueDisplay');
+    const pitchValueDisplay = document.getElementById('pitchValueDisplay');
+    const systemStatusLights = document.querySelectorAll('#system-readiness-module .system-status-light');
+    const batteryFill = document.querySelector('#system-readiness-module .battery-fill');
+    const batteryPercent = document.querySelector('#system-readiness-module .battery-percent');
+
+    const leftTrack = document.getElementById("leftTrack");
+    const rightTrack = document.getElementById("rightTrack");
+    const movementStatusText = document.getElementById("movementStatus");
+    const movementIndicator = document.getElementById("movementIndicator");
+
+    // SVG for the stop icon used in the movement indicator
+    const stopIconSVG = `
+        <svg class="stop-icon" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="16"></line>
+        </svg>`;
+
+    // Sends movement commands to the backend
+    function sendCommand(direction) {
+        if (robotGlobalState !== "ON" && direction !== 'stop') return; // Block if not ON (unless stopping)
+        if (direction === currentSentMoveAction && direction !== 'stop') return; // Avoid sending same command repeatedly
+
+        currentSentMoveAction = direction;
+        console.log(`Sending robot command: ${direction}`);
+        fetch('/control', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: `direction=${direction}` })
+            .catch(error => console.error('Error sending control command:', error));
+    }
+
+    // Sends angle commands to specified servos
+    function sendServoCommand(servoId, angle) {
+        // Block if robot not ON, with an exception for turning the torch OFF
+        if (robotGlobalState !== "ON" && servoId !== TORCH_ANGLE_SERVO_ID) return;
+        if (robotGlobalState !== "ON" && servoId === TORCH_ANGLE_SERVO_ID && angle !== TORCH_SERVO_OFF_ANGLE) return;
+
+        angle = Math.round(Math.max(-90, Math.min(90, angle))); // Clamp angle
+        
+        // For camera servos, only send if change exceeds threshold (reduces jitter/spam)
+        if (servoId === CAMERA_PAN_SERVO_ID) {
+            if (Math.abs(angle - lastSentYaw) < CAMERA_SEND_THRESHOLD && angle !== 0 && lastSentYaw !== 0) return;
+            lastSentYaw = angle;
+        } else if (servoId === CAMERA_TILT_SERVO_ID) {
+            if (Math.abs(angle - lastSentPitch) < CAMERA_SEND_THRESHOLD && angle !== 0 && lastSentPitch !== 0) return;
+            lastSentPitch = angle;
+        }
+        fetch('/servo', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: `servo_id=${servoId}&angle=${angle}` })
+            .catch(error => console.error('Error sending servo command:', error));
+    }
+
+    // Updates the robot's global state (ON, STANDBY, KILLED) and reflects changes in the UI
+    function updateRobotGlobalState(newState) {
+        if (robotGlobalState === newState && newState !== "KILLED") return; // No change needed
+
+        const oldState = robotGlobalState;
+        robotGlobalState = newState;
+
+        // Actions to take when transitioning FROM "ON" state
+        if (oldState === "ON" && (newState === "STANDBY" || newState === "KILLED")) {
+            sendCommand('stop'); // Ensure robot stops
+            sendServoCommand(TORCH_ANGLE_SERVO_ID, TORCH_SERVO_OFF_ANGLE); // Turn torch servo off
+            if (window.getTorchState && window.getTorchState()) { // If torch was on, click its OFF button
+                document.getElementById('offBtn').click();
+            }
+            keys.w = false; keys.a = false; keys.s = false; keys.d = false; // Reset movement key states
+        }
+
+        // Update UI based on the new state
+        switch (robotGlobalState) {
+            case "ON":
+                robotOnBtn.classList.add('active');
+                robotStandbyBtn.classList.remove('active');
+                robotOnBtn.disabled = false; robotStandbyBtn.disabled = false; killPccBtn.disabled = false;
+                if (killPccBtn.style.backgroundColor.includes('rgb(220, 53, 69)')) { // If kill button was KILLED-red
+                    killPccBtn.style.backgroundColor = ''; // Reset to CSS default
+                }
+                systemStatusLights.forEach(indicator => { // All systems green
+                    indicator.style.backgroundColor = "#28a745";
+                    indicator.style.boxShadow = "0 0 8px rgba(40, 167, 69, 0.4)";
+                });
+                if (yawSlider) yawSlider.disabled = false;
+                if (pitchSlider) pitchSlider.disabled = false;
+                if (window.updateMovementUI) window.updateMovementUI('stop'); // Default to stopped visual
+                break;
+
+            case "STANDBY":
+                robotOnBtn.classList.remove('active');
+                robotStandbyBtn.classList.add('active');
+                robotOnBtn.disabled = false; robotStandbyBtn.disabled = false; killPccBtn.disabled = false;
+                if (killPccBtn.style.backgroundColor.includes('rgb(220, 53, 69)')) {
+                    killPccBtn.style.backgroundColor = '';
+                }
+                systemStatusLights.forEach(indicator => { // Systems idle/grey
+                    indicator.style.backgroundColor = "#5c656d"; indicator.style.boxShadow = "none";
+                });
+                targetYaw = 0; targetPitch = 0; lastSentYaw = 0; lastSentPitch = 0; // Reset camera targets
+                if (yawSlider) { yawSlider.disabled = true; yawSlider.value = 0; }
+                if (pitchSlider) { pitchSlider.disabled = true; pitchSlider.value = 0; }
+                if (yawValueDisplay) yawValueDisplay.textContent = '0°';
+                if (pitchValueDisplay) pitchValueDisplay.textContent = '0°';
+                if (window.updateMovementUI) window.updateMovementUI('stop_standby');
+                break;
+
+            case "KILLED":
+                robotOnBtn.classList.remove('active');
+                robotStandbyBtn.classList.remove('active');
+                robotOnBtn.disabled = true; robotStandbyBtn.disabled = true; killPccBtn.disabled = true;
+                killPccBtn.style.backgroundColor = '#dc3545'; // Specific KILLED state red
+                systemStatusLights.forEach(indicator => { // Systems error/red
+                    indicator.style.backgroundColor = "#dc3545";
+                    indicator.style.boxShadow = "0 0 8px rgba(220, 53, 69, 0.4)";
+                });
+                targetYaw = 0; targetPitch = 0; lastSentYaw = 0; lastSentPitch = 0;
+                if (yawSlider) { yawSlider.disabled = true; yawSlider.value = 0; }
+                if (pitchSlider) { pitchSlider.disabled = true; pitchSlider.value = 0; }
+                if (yawValueDisplay) yawValueDisplay.textContent = '0°';
+                if (pitchValueDisplay) pitchValueDisplay.textContent = '0°';
+                if (window.updateMovementUI) window.updateMovementUI('stop_killed');
+                if (batteryFill) batteryFill.style.background = '#dc3545'; // Battery red
+                if (batteryPercent) batteryPercent.textContent = `E-STOP`;
+                break;
+        }
+        if (window.updateLaserButtonStates) window.updateLaserButtonStates(); // Update laser button states accordingly
+    }
+
+    // Event listeners for main power buttons
+    killPccBtn.addEventListener('click', () => updateRobotGlobalState("KILLED"));
+    robotOnBtn.addEventListener('click', () => {
+        if (robotGlobalState !== "KILLED") updateRobotGlobalState("ON");
+    });
+    robotStandbyBtn.addEventListener('click', () => {
+        if (robotGlobalState !== "KILLED") updateRobotGlobalState("STANDBY");
+    });
+
+    // Simulates battery drain and visual updates
+    function simulateBattery() {
+        if (robotGlobalState === "KILLED") { // No change if killed
+            setTimeout(simulateBattery, 2000 + Math.random() * 1000);
+            return;
+        }
+        let currentLevel = parseFloat(batteryFill.style.width) || 75;
+        // Drain rate depends on robot state
+        let change = (robotGlobalState === "ON") ? (Math.random() * -0.5) - 0.1 : (Math.random() * -0.05) - 0.01;
+        let newLevel = Math.min(100, Math.max(0, currentLevel + change)); // Clamp between 0-100
+        
+        batteryFill.style.width = `${newLevel}%`;
+        batteryPercent.textContent = `${Math.round(newLevel)}% CHARGE`;
+        // Change color based on level
+        if (newLevel < 20) batteryFill.style.background = 'linear-gradient(90deg, #dc3545, #e35d6e)';
+        else if (newLevel < 40) batteryFill.style.background = 'linear-gradient(90deg, #ffc107, #ffd351)';
+        else batteryFill.style.background = 'linear-gradient(90deg, #3E8E41, #5A9E5E)';
+        
+        setTimeout(simulateBattery, 2000 + Math.random() * 1000); // Repeat
+    }
+
+    // Sets up click listeners for utility buttons to toggle their 'active' class
+    function setupUtilityButtons() {
+        const utilityButtons = document.querySelectorAll('#utilities-module .utility-button');
+        utilityButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                button.classList.toggle('active');
+                console.log(`${button.textContent} button toggled ${button.classList.contains('active') ? 'ON' : 'OFF'}`);
+            });
+        });
+    }
+
+    // --- Movement Control UI Update Functions ---
+    // Controls the animation (play/pause, direction) of the visual tracks
+    function setTreadAnimation(trackElement, playState, direction) {
+        if (trackElement) {
+            trackElement.style.animationPlayState = playState;
+            trackElement.style.animationDirection = direction;
+            trackElement.classList.toggle('track-moving', playState === 'running');
+        }
+    }
+
+    // Updates the movement indicator (arrow/icon) and status text
+    function updateIndicatorAndStatus(symbolHTML, statusMsg, isActiveState) {
+        if (movementIndicator) {
+            movementIndicator.innerHTML = symbolHTML;
+            movementIndicator.classList.toggle('active-movement', isActiveState);
+        }
+        if (movementStatusText) {
+            movementStatusText.textContent = statusMsg;
+        }
+    }
+
+    // Central function to update all visual elements related to robot movement
+    window.updateMovementUI = function(logicalActionOrState) {
+        let symbolContent = stopIconSVG;
+        let statusText = 'Status: Unknown';
+        let lTrackPlay = 'paused', lTrackDir = 'normal';
+        let rTrackPlay = 'paused', rTrackDir = 'normal';
+        let isIndicatorActive = false;
+
+        if (robotGlobalState === "ON") {
+            isIndicatorActive = true;
+            switch (logicalActionOrState) {
+                case 'forward': symbolContent = '▲'; statusText = 'Status: Moving Forward'; lTrackPlay = 'running'; rTrackPlay = 'running'; break;
+                case 'backward': symbolContent = '▼'; statusText = 'Status: Moving Backward'; lTrackPlay = 'running'; lTrackDir = 'reverse'; rTrackPlay = 'running'; rTrackDir = 'reverse'; break;
+                case 'left': symbolContent = '◀'; statusText = 'Status: Turning Left'; lTrackPlay = 'running'; lTrackDir = 'reverse'; rTrackPlay = 'running'; rTrackDir = 'normal'; break;
+                case 'right': symbolContent = '▶'; statusText = 'Status: Turning Right'; lTrackPlay = 'running'; lTrackDir = 'normal'; rTrackPlay = 'running'; rTrackDir = 'reverse'; break;
+                case 'stop': statusText = ' '; break; // Robot ON but stopped
+                default: statusText = 'Status: Idle (Robot ON)'; break;
+            }
+        } else if (robotGlobalState === "STANDBY") {
+            statusText = 'Status: Robot Standby';
+            currentSentMoveAction = 'stop_standby';
+        } else if (robotGlobalState === "KILLED") {
+            statusText = 'Status: Robot E-STOP (KILLED)';
+            currentSentMoveAction = 'stop_killed';
+        }
+
+        setTreadAnimation(leftTrack, lTrackPlay, lTrackDir);
+        setTreadAnimation(rightTrack, rTrackPlay, rTrackDir);
+        updateIndicatorAndStatus(symbolContent, statusText, isIndicatorActive);
+    }
+
+    // --- Main Input Processing Loop ---
+    // This loop runs continuously to check for input and update robot commands/UI.
+    function gameLoop() {
+        if (robotGlobalState === "ON") {
+            let currentEvalAction = 'stop'; // Default to stop
+            // Determine action based on pressed keys
+            if (keys.w) currentEvalAction = 'forward';
+            else if (keys.s) currentEvalAction = 'backward';
+            else if (keys.a) currentEvalAction = 'left';
+            else if (keys.d) currentEvalAction = 'right';
+
+            sendCommand(currentEvalAction);    // Send command to backend
+            window.updateMovementUI(currentEvalAction); // Update UI
+        } else {
+            // Reset keys if robot is not ON (e.g., state changed while key was held)
+            if (keys.w || keys.a || keys.s || keys.d) {
+                keys.w = false; keys.a = false; keys.s = false; keys.d = false;
+            }
+            // Ensure UI reflects non-ON state
+            const expectedNonOnAction = robotGlobalState === "STANDBY" ? 'stop_standby' : 'stop_killed';
+            if(currentSentMoveAction !== expectedNonOnAction) {
+                 window.updateMovementUI(expectedNonOnAction);
+            }
+        }
+        requestAnimationFrame(gameLoop); // Request browser to call gameLoop again for next frame
+    }
+
+    // Runs when the HTML document is fully loaded and parsed
+    document.addEventListener('DOMContentLoaded', () => {
+        updateRobotGlobalState("STANDBY"); // Initial state
+        simulateBattery();
+        setupUtilityButtons();
+        requestAnimationFrame(gameLoop); // Start the main processing loop
+    });
+
+
+    // --- Module 1: Laser Cutter (Torch) Logic ---
+    // Encapsulated in an IIFE (Immediately Invoked Function Expression) for scope isolation.
+    (function() {
+        // Constants for temperature simulation and display
+        const CAUTION_TEMP = 600; const CRITICAL_TEMP = 800;
+        const COOLING_RATE = 0.5; const HEATING_RATE = 0.35;
+        const MAX_HISTORICAL_DATA_POINTS = 60; // For histogram
+        const MAX_TEMP = 1000;
+
+        const onBtn = document.getElementById('onBtn');
+        const offBtn = document.getElementById('offBtn');
+        const tempValue = document.getElementById('tempValue');
+        const statusIndicator = document.getElementById('laserStatusIndicator');
+        const graphContainer = document.querySelector('#laser-cutter-module .graph-container');
+        const histogramDataContainer = document.getElementById('temperatureHistogramData');
+
+        let isTorchOn = false;
+        let currentTemp = 0;
+        let historicalTemperatures = Array(MAX_HISTORICAL_DATA_POINTS).fill(0);
+        let tempSimulationIntervalId, histogramUpdateIntervalId;
+        let zonesInitialized = false; // Flag to ensure temp zones are set up once
+
+        // Sets up the visual temperature zones (Normal, Caution, Critical) on the graph
+        function setupTempZones() {
+            if (!graphContainer || graphContainer.clientHeight === 0 || zonesInitialized) return;
+            const existingZones = graphContainer.querySelectorAll('.temp-zone');
+            existingZones.forEach(zone => zone.remove()); // Clear old zones if any
+
+            const normalZone = document.createElement('div'); /* ... create and append zones ... */
+            normalZone.className = 'temp-zone normal-zone';
+            normalZone.style.height = (CAUTION_TEMP / MAX_TEMP * 100) + '%';
+            normalZone.textContent = `Normal (<${CAUTION_TEMP}°C)`;
+            graphContainer.appendChild(normalZone);
+
+            const cautionZone = document.createElement('div');
+            cautionZone.className = 'temp-zone caution-zone';
+            cautionZone.style.bottom = (CAUTION_TEMP / MAX_TEMP * 100) + '%';
+            cautionZone.style.height = ((CRITICAL_TEMP - CAUTION_TEMP) / MAX_TEMP * 100) + '%';
+            cautionZone.textContent = `Caution (${CAUTION_TEMP}-${CRITICAL_TEMP}°C)`;
+            graphContainer.appendChild(cautionZone);
+
+            const criticalZone = document.createElement('div');
+            criticalZone.className = 'temp-zone critical-zone';
+            criticalZone.style.bottom = (CRITICAL_TEMP / MAX_TEMP * 100) + '%';
+            criticalZone.style.height = ((MAX_TEMP - CRITICAL_TEMP) / MAX_TEMP * 100) + '%';
+            criticalZone.textContent = `Critical (>${CRITICAL_TEMP}°C)`;
+            graphContainer.appendChild(criticalZone);
+            zonesInitialized = true;
+        }
+
+        // Updates the temperature histogram display (bar chart)
+        function updateHistogramDisplay() {
+            if (!histogramDataContainer || !graphContainer) return;
+            if (!zonesInitialized) setupTempZones();
+
+            const barWidth = histogramDataContainer.clientWidth / MAX_HISTORICAL_DATA_POINTS;
+            histogramDataContainer.innerHTML = ''; // Clear previous bars
+
+            historicalTemperatures.forEach((temp) => {
+                const bar = document.createElement('div');
+                bar.className = 'histogram-bar';
+                const barHeightPercent = Math.max(0, Math.min(100, (temp / MAX_TEMP) * 100));
+                bar.style.height = barHeightPercent + '%';
+                bar.style.width = barWidth + 'px';
+                if (temp >= CRITICAL_TEMP) bar.style.backgroundColor = '#dc3545';
+                else if (temp >= CAUTION_TEMP) bar.style.backgroundColor = '#ffc107';
+                else bar.style.backgroundColor = '#6c92b8';
+                histogramDataContainer.appendChild(bar);
+            });
+        }
+
+        // Adds current temperature to history for the histogram
+        function recordTemperature() {
+            historicalTemperatures.push(currentTemp);
+            if (historicalTemperatures.length > MAX_HISTORICAL_DATA_POINTS) {
+                historicalTemperatures.shift(); // Keep array size fixed
+            }
+        }
+
+        // Updates laser button states based on robot and torch state
+        window.updateLaserButtonStates = function() {
+            onBtn.disabled = robotGlobalState !== "ON";
+            offBtn.disabled = robotGlobalState !== "ON";
+
+            if (robotGlobalState === "ON") {
+                onBtn.classList.toggle('active', isTorchOn);
+                offBtn.classList.toggle('active', !isTorchOn);
+            } else {
+                onBtn.classList.remove('active');
+                offBtn.classList.remove('active');
+                if (isTorchOn) isTorchOn = false; // Auto-turn off torch if robot turns off
+            }
+        }
+
+        // Simulates temperature changes over time
+        function simulateTemperatureTick() {
+            const deltaTimeMs = 100; // Interval of this tick
+            if (robotGlobalState !== "ON") { // If robot is off, cool down
+                currentTemp = Math.max(0, currentTemp - COOLING_RATE * (deltaTimeMs / 1000 * 60));
+                if (robotGlobalState === "STANDBY") { statusIndicator.textContent = "ROBOT STANDBY"; statusIndicator.className = "laser-status-display robot-standby"; }
+                else if (robotGlobalState === "KILLED") { statusIndicator.textContent = "ROBOT KILLED"; statusIndicator.className = "laser-status-display robot-off"; }
+            } else { // If robot is on
+                if (isTorchOn) { // And torch is on, heat up
+                    const fluctuation = (Math.random() - 0.5) * 5;
+                    currentTemp += (HEATING_RATE + fluctuation) * (deltaTimeMs / 1000 * 60);
+                    currentTemp = Math.min(currentTemp, MAX_TEMP);
+                } else { // Torch is off, cool down
+                    currentTemp -= COOLING_RATE * (deltaTimeMs / 1000 * 60);
+                    currentTemp = Math.max(0, currentTemp);
+                }
+                // Update status display based on temperature
+                if (currentTemp >= CRITICAL_TEMP) { statusIndicator.textContent = "TEMP CRITICAL!"; statusIndicator.className = "laser-status-display critical"; }
+                else if (currentTemp >= CAUTION_TEMP) { statusIndicator.textContent = "CAUTION: HIGH TEMP"; statusIndicator.className = "laser-status-display caution"; }
+                else if (isTorchOn) { statusIndicator.textContent = "TORCH ACTIVE"; statusIndicator.className = "laser-status-display torch-active"; }
+                else { statusIndicator.textContent = "TORCH READY"; statusIndicator.className = "laser-status-display torch-ready"; }
+            }
+            tempValue.textContent = currentTemp.toFixed(0);
+            window.updateLaserButtonStates();
+        }
+
+        onBtn.addEventListener('click', () => {
+            if (robotGlobalState !== "ON" || isTorchOn) return;
+            isTorchOn = true; window.updateLaserButtonStates();
+            sendServoCommand(TORCH_ANGLE_SERVO_ID, TORCH_SERVO_ON_ANGLE);
+        });
+        offBtn.addEventListener('click', () => {
+            if (robotGlobalState !== "ON" || !isTorchOn) return;
+            isTorchOn = false; window.updateLaserButtonStates();
+            sendServoCommand(TORCH_ANGLE_SERVO_ID, TORCH_SERVO_OFF_ANGLE);
+        });
+
+        window.getTorchState = () => isTorchOn; // Expose torch state for global access
+
+        window.updateLaserButtonStates(); // Initial setup
+        tempSimulationIntervalId = setInterval(simulateTemperatureTick, 100); // Start temp simulation
+        histogramUpdateIntervalId = setInterval(() => { // Start histogram updates
+            recordTemperature();
+            updateHistogramDisplay();
+        }, 1000);
+
+        setTimeout(setupTempZones, 100); // Slightly delay zone setup for layout calc
+        // Redraw histogram and zones on resize
+        const observer = new ResizeObserver(entries => {
+            for (let entry of entries) {
+                if (entry.target === graphContainer && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+                    if (!zonesInitialized) setupTempZones();
+                    updateHistogramDisplay();
+                }
+            }
+        });
+        if (graphContainer) observer.observe(graphContainer);
+    })();
+
+    // --- Module: Mapping, Keyboard Input, Camera Sliders ---
+    (function() {
+        const mapCanvas = document.getElementById('mapCanvas'); const mapCtx = mapCanvas?.getContext('2d'); const mapContainer = mapCanvas?.parentElement;
+        // Constants for map dimensions and robot representation on map
+        const REAL_WORLD_WIDTH_M = 4; const REAL_WORLD_HEIGHT_M = 2; const PIXELS_PER_METER = 150;
+        const LOGICAL_WIDTH = REAL_WORLD_WIDTH_M * PIXELS_PER_METER; const LOGICAL_HEIGHT = REAL_WORLD_HEIGHT_M * PIXELS_PER_METER;
+        let viewScale = 1; // Map zoom level
+
+        const ROBOT_REAL_LENGTH_M = 0.4; const ROBOT_REAL_WIDTH_M = 0.3;
+        const ROBOT_LOGICAL_LENGTH = ROBOT_REAL_LENGTH_M * PIXELS_PER_METER; const ROBOT_LOGICAL_WIDTH = ROBOT_REAL_WIDTH_M * PIXELS_PER_METER;
+        const TARGET_SPEED_MPS = 0.1; const TARGET_SPEED_LOGICAL_UNITS_PER_SECOND = TARGET_SPEED_MPS * PIXELS_PER_METER;
+        const FRAMES_PER_SECOND_ESTIMATE = 60; const ROBOT_SPEED = TARGET_SPEED_LOGICAL_UNITS_PER_SECOND / FRAMES_PER_SECOND_ESTIMATE;
+        const robotHalfDiagonal = Math.hypot(ROBOT_LOGICAL_LENGTH, ROBOT_LOGICAL_WIDTH) / 2;
+        const TARGET_ROTATION_TANGENTIAL_SPEED_LOGICAL_UNITS_PER_SECOND = 0.1 * PIXELS_PER_METER;
+        const TARGET_ANGULAR_SPEED_RAD_PER_SECOND = TARGET_ROTATION_TANGENTIAL_SPEED_LOGICAL_UNITS_PER_SECOND / robotHalfDiagonal;
+        const ROBOT_ROTATION_SPEED = TARGET_ANGULAR_SPEED_RAD_PER_SECOND / FRAMES_PER_SECOND_ESTIMATE;
+        const boundaryMargin = robotHalfDiagonal + (0.02 * PIXELS_PER_METER); // Keep robot within map
+        const mapGame = { lastPosition: null, trails: [] }; // For drawing cut trails
+        const mapRobot = { x: boundaryMargin, y: boundaryMargin, width: ROBOT_LOGICAL_LENGTH, height: ROBOT_LOGICAL_WIDTH, speed: ROBOT_SPEED, rotationSpeed: ROBOT_ROTATION_SPEED, rotation: 0 };
+        let mapAnimationId; // For map animation loop
+        
+        // Adjusts canvas size and scale to fit its container
+        function resizeCanvas() { 
+            if (!mapContainer || !mapCanvas) return; 
+            mapCanvas.width = mapContainer.clientWidth; mapCanvas.height = mapContainer.clientHeight; 
+            const scaleX = mapCanvas.width / LOGICAL_WIDTH; const scaleY = mapCanvas.height / LOGICAL_HEIGHT; 
+            viewScale = Math.min(scaleX, scaleY); 
+            redrawMap(); 
+        }
+
+        // Redraws the entire map content (grid, robot, trails)
+        function redrawMap() {
+            if (!mapCtx || !mapCanvas) return;
+            mapCtx.setTransform(1, 0, 0, 1, 0, 0); mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
+            mapCtx.fillStyle = '#0a0c0e'; mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
+
+            // Calculate translation to center map or robot
+            let idealTranslateX = mapCanvas.width / 2 - mapRobot.x * viewScale;
+            let idealTranslateY = mapCanvas.height / 2 - mapRobot.y * viewScale;
+            let finalTranslateX, finalTranslateY;
+            if (LOGICAL_WIDTH * viewScale <= mapCanvas.width) { finalTranslateX = (mapCanvas.width - LOGICAL_WIDTH * viewScale) / 2; }
+            else { finalTranslateX = Math.max(mapCanvas.width - LOGICAL_WIDTH * viewScale, Math.min(0, idealTranslateX)); }
+            if (LOGICAL_HEIGHT * viewScale <= mapCanvas.height) { finalTranslateY = (mapCanvas.height - LOGICAL_HEIGHT * viewScale) / 2; }
+            else { finalTranslateY = Math.max(mapCanvas.height - LOGICAL_HEIGHT * viewScale, Math.min(0, idealTranslateY)); }
+
+            mapCtx.save(); mapCtx.translate(finalTranslateX, finalTranslateY); mapCtx.scale(viewScale, viewScale);
+            // Draw grid
+            mapCtx.strokeStyle = '#181818'; mapCtx.lineWidth = 1 / viewScale; const gridStepLogical = PIXELS_PER_METER / 2; 
+            for (let x = 0; x <= LOGICAL_WIDTH; x += gridStepLogical) { mapCtx.beginPath(); mapCtx.moveTo(x, 0); mapCtx.lineTo(x, LOGICAL_HEIGHT); mapCtx.stroke(); } 
+            for (let y = 0; y <= LOGICAL_HEIGHT; y += gridStepLogical) { mapCtx.beginPath(); mapCtx.moveTo(0, y); mapCtx.lineTo(LOGICAL_WIDTH, y); mapCtx.stroke(); } 
+            // Draw cutting area rectangle
+            const cutRectRealWidth = 2; const cutRectRealHeight = 1; 
+            const cutRectLogicalWidth = cutRectRealWidth * PIXELS_PER_METER; const cutRectLogicalHeight = cutRectRealHeight * PIXELS_PER_METER;
+            const cutRectX = (LOGICAL_WIDTH - cutRectLogicalWidth) / 2; const cutRectY = (LOGICAL_HEIGHT - cutRectLogicalHeight) / 2; 
+            mapCtx.strokeStyle = '#A88700';  mapCtx.lineWidth = Math.max(9 / viewScale, 6); 
+            mapCtx.strokeRect(cutRectX, cutRectY, cutRectLogicalWidth, cutRectLogicalHeight); 
+            drawMapTrails(); drawMapRobot(); 
+            mapCtx.restore();
+        }
+
+        // Draws the robot representation on the map
+        function drawMapRobot() { /* ... robot drawing logic ... */ 
+            if (!mapCtx) return; mapCtx.save(); mapCtx.translate(mapRobot.x, mapRobot.y); mapCtx.rotate(mapRobot.rotation); 
+            const dW = mapRobot.width; const dH = mapRobot.height; const hW = dW / 2; const hH = dH / 2; const tT = 0.03 * PIXELS_PER_METER; 
+            const haW = 0.15 * PIXELS_PER_METER; const haH = 0.10 * PIXELS_PER_METER; const iO = 0.03 * PIXELS_PER_METER; 
+            const iBY = 0.10 * PIXELS_PER_METER; const iBX = 0.08 * PIXELS_PER_METER; const dLW = Math.max(1, 1 / viewScale); 
+            mapCtx.fillStyle = robotGlobalState === "ON" ? '#ddd' : '#888'; mapCtx.fillRect(-hW, -hH, dW, dH); 
+            mapCtx.fillStyle = robotGlobalState === "ON" ? '#bbb' : '#666'; mapCtx.fillRect(-hW, -hH - tT, dW, tT); mapCtx.fillRect(-hW, hH, dW, tT); 
+            mapCtx.fillStyle = robotGlobalState === "ON" ? '#aaa' : '#555'; mapCtx.fillRect(-haW / 2, -haH / 2, haW, haH); 
+            mapCtx.strokeStyle = robotGlobalState === "ON" ? '#888' : '#444'; mapCtx.lineWidth = dLW; 
+            const tMI = 0.07 * PIXELS_PER_METER; 
+            for (let x = -hW; x <= hW; x += tMI) { mapCtx.beginPath(); mapCtx.moveTo(x, -hH - tT); mapCtx.lineTo(x, -hH); mapCtx.stroke(); mapCtx.beginPath(); mapCtx.moveTo(x, hH); mapCtx.lineTo(x, hH + tT); mapCtx.stroke(); } 
+            mapCtx.fillStyle = robotGlobalState === "ON" ? '#ffffbb' : '#999'; mapCtx.beginPath(); mapCtx.moveTo(hW + iO, 0); mapCtx.lineTo(hW - iBX, -iBY / 2); mapCtx.lineTo(hW - iBX, iBY / 2); mapCtx.closePath(); mapCtx.fill(); 
+            mapCtx.restore(); 
+        }
+        // Draws trails left by the robot if the torch is active
+        function drawMapTrails() { /* ... trail drawing logic ... */ 
+            if (!mapCtx || !mapGame.trails.length) return; mapCtx.strokeStyle = '#50A6C2'; mapCtx.lineWidth = Math.max(6 / viewScale, 4.5); 
+            mapCtx.lineCap = 'round'; mapCtx.lineJoin = 'round'; 
+            for (const segment of mapGame.trails) { mapCtx.beginPath(); mapCtx.moveTo(segment.start.x, segment.start.y); mapCtx.lineTo(segment.end.x, segment.end.y); mapCtx.stroke(); } 
+        }
+        
+        // Updates the robot's visual position on the map based on `keys` state
+        function updateMapPosition() {
+            let dx = 0; dy = 0;
+            if (robotGlobalState !== "ON") { mapGame.lastPosition = null; return; }
+
+            if (keys.a) { mapRobot.rotation -= mapRobot.rotationSpeed; }
+            else if (keys.d) { mapRobot.rotation += mapRobot.rotationSpeed; }
+            else if (keys.w) { dx = Math.cos(mapRobot.rotation) * mapRobot.speed; dy = Math.sin(mapRobot.rotation) * mapRobot.speed; }
+            else if (keys.s) { dx = -Math.cos(mapRobot.rotation) * mapRobot.speed * 0.7; dy = -Math.sin(mapRobot.rotation) * mapRobot.speed * 0.7; }
+            
+            mapRobot.x += dx; mapRobot.y += dy;
+            mapRobot.x = Math.max(boundaryMargin, Math.min(LOGICAL_WIDTH - boundaryMargin, mapRobot.x));
+            mapRobot.y = Math.max(boundaryMargin, Math.min(LOGICAL_HEIGHT - boundaryMargin, mapRobot.y));
+
+            // Trail drawing logic
+            const isTorchActive = window.getTorchState ? window.getTorchState() : false;
+            const robotMovedLinearly = dx !== 0 || dy !== 0;
+            if (isTorchActive && robotMovedLinearly) {
+                const currentMapPos = { x: mapRobot.x, y: mapRobot.y };
+                if (mapGame.lastPosition && (currentMapPos.x !== mapGame.lastPosition.x || currentMapPos.y !== mapGame.lastPosition.y)) {
+                    mapGame.trails.push({ start: { ...mapGame.lastPosition }, end: { ...currentMapPos } });
+                }
+                mapGame.lastPosition = currentMapPos;
+            } else { mapGame.lastPosition = null; }
+        }
+
+        // Main animation loop for the map
+        function mapGameLoop() {
+            updateMapPosition(); // Updates robot's visual position on map
+            redrawMap();         // Redraws the entire map
+            mapAnimationId = requestAnimationFrame(mapGameLoop);
+        }
+
+        // Keyboard event listeners to update the global `keys` state object
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) {
+                if (robotGlobalState === "ON") { if (!keys[key]) keys[key] = true; }
+                else { keys[key] = false; }
+                if (['w', 'a', 's', 'd'].includes(key)) e.preventDefault(); // Prevent page scroll
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) {
+                if (keys[key]) keys[key] = false;
+                 if (['w', 'a', 's', 'd'].includes(key)) e.preventDefault();
+            }
+        });
+
+        // Updates camera slider UI elements (callable from gamepad logic)
+        window.updateCameraSliders = function(yaw, pitch) {
+            const roundedYaw = Math.round(yaw); const roundedPitch = Math.round(pitch);
+            if (yawSlider && yawValueDisplay) {
+                if (document.activeElement !== yawSlider) yawSlider.value = roundedYaw; // Avoid fighting user drag
+                yawValueDisplay.textContent = `${roundedYaw}°`;
+            }
+            if (pitchSlider && pitchValueDisplay) {
+                if (document.activeElement !== pitchSlider) pitchSlider.value = roundedPitch;
+                pitchValueDisplay.textContent = `${roundedPitch}°`;
+            }
+        }
+        // Event listeners for camera sliders
+        yawSlider?.addEventListener('input', (e) => {
+            const newYaw = parseFloat(e.target.value); targetYaw = newYaw;
+            if(robotGlobalState === "ON") sendServoCommand(CAMERA_PAN_SERVO_ID, newYaw);
+            if (window.updateCameraSliders) window.updateCameraSliders(newYaw, targetPitch);
+        });
+        pitchSlider?.addEventListener('input', (e) => {
+            const newPitch = parseFloat(e.target.value); targetPitch = newPitch;
+            if(robotGlobalState === "ON") sendServoCommand(CAMERA_TILT_SERVO_ID, newPitch);
+            if (window.updateCameraSliders) window.updateCameraSliders(targetYaw, newPitch);
+        });
+
+        const resizeObserver = new ResizeObserver(() => { window.requestAnimationFrame(resizeCanvas); });
+        if (mapContainer && mapCanvas && mapCtx) {
+            resizeObserver.observe(mapContainer);
+            resizeCanvas(); mapGameLoop();
+        } else { console.error("Map initialization failed: Canvas or container not found."); }
+        
+        // Pause map animation and stop robot if tab becomes hidden
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+                cancelAnimationFrame(mapAnimationId);
+                if (robotGlobalState === "ON" && (keys.w || keys.a || keys.s || keys.d)) { sendCommand('stop'); }
+            } else {
+                if (mapContainer && mapCanvas && mapCtx) mapAnimationId = requestAnimationFrame(mapGameLoop);
+            }
+        });
+    })();
+
+    // --- Gamepad API Integration ---
+    let gamepadInfo = { index: null, animationFrameId: null, buttonStates: {}, killComboHoldStartTime: null, killComboTimerId: null };
+    const gamepadStatusElement = document.getElementById('gamepad-status');
+
+    // Briefly highlights a UI element when activated by gamepad
+    function applyGamepadHighlight(elementId) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.classList.add('active-input');
+            setTimeout(() => {
+                // Only remove if not actively being interacted with (e.g. mouse click)
+                if (!element.matches(':active') || elementId === 'camera-slider-container') {
+                    element.classList.remove('active-input');
+                }
+            }, (elementId === 'camera-slider-container' ? 150 : 200));
+        }
+    }
+
+
+    // Processes input from the connected gamepad
+    function processGamepadInput() {
+        if (gamepadInfo.index === null || !navigator.getGamepads) return;
+        const gp = navigator.getGamepads()[gamepadInfo.index];
+        if (!gp || !gp.connected) { handleGamepadDisconnected({ gamepad: { index: gamepadInfo.index, id: 'Lost Connection' } }); return; }
+
+        // Common gamepad button mappings
+        const btnX = gp.buttons[0]?.pressed ?? false;     // Robot ON
+        const btnO = gp.buttons[1]?.pressed ?? false;     // Robot Standby
+        const btnTriangle = gp.buttons[3]?.pressed ?? false; // Torch Toggle (with L2)
+        const btnL2 = gp.buttons[6]?.pressed ?? false;
+        const btnR2 = gp.buttons[7]?.pressed ?? false;    // Kill Combo (with L2)
+        const dpadUp = gp.buttons[12]?.pressed ?? false;  /* Movement */
+        const dpadDown = gp.buttons[13]?.pressed ?? false;
+        const dpadLeft = gp.buttons[14]?.pressed ?? false;
+        const dpadRight = gp.buttons[15]?.pressed ?? false;
+        const leftStickX = gp.axes[0] ?? 0;  // Camera Yaw
+        const rightStickY = gp.axes[3] ?? 0; // Camera Pitch
+
+        // Power Controls
+        if (btnX && !gamepadInfo.buttonStates[0] && robotOnBtn && !robotOnBtn.disabled) { robotOnBtn.click(); applyGamepadHighlight('robotOnBtn'); }
+        if (btnO && !gamepadInfo.buttonStates[1] && robotStandbyBtn && !robotStandbyBtn.disabled) { robotStandbyBtn.click(); applyGamepadHighlight('robotStandbyBtn'); }
+        gamepadInfo.buttonStates[0] = btnX; gamepadInfo.buttonStates[1] = btnO;
+
+        // Torch Toggle (L2 + Triangle)
+        const torchButtonOn = document.getElementById('onBtn'); const torchButtonOff = document.getElementById('offBtn');
+        if (btnTriangle && !gamepadInfo.buttonStates[3] && btnL2) {
+            if (torchButtonOn && torchButtonOff && robotGlobalState === "ON") {
+                const isTorchCurrentlyOn = window.getTorchState ? window.getTorchState() : false;
+                if (isTorchCurrentlyOn) { torchButtonOff.click(); applyGamepadHighlight('offBtn'); }
+                else { torchButtonOn.click(); applyGamepadHighlight('onBtn'); }
+            }
+        }
+        gamepadInfo.buttonStates[3] = btnTriangle;
+
+        // Kill Combo (L2 + R2 hold for 1 second)
+        const isKillComboPressed = btnL2 && btnR2;
+        const wasKillComboPressed = gamepadInfo.buttonStates[6] && gamepadInfo.buttonStates[7];
+        if (isKillComboPressed && !wasKillComboPressed) { // Combo just pressed
+            gamepadInfo.killComboHoldStartTime = performance.now();
+            if (gamepadInfo.killComboTimerId) clearTimeout(gamepadInfo.killComboTimerId);
+            gamepadInfo.killComboTimerId = setTimeout(() => { // Check after 1 sec
+                const currentGps = navigator.getGamepads(); const currentGp = currentGps[gamepadInfo.index];
+                if (currentGp && (currentGp.buttons[6]?.pressed ?? false) && (currentGp.buttons[7]?.pressed ?? false)) { // Still held
+                    if (killPccBtn && !killPccBtn.disabled) { killPccBtn.click(); applyGamepadHighlight('killPccBtn'); }
+                }
+                gamepadInfo.killComboHoldStartTime = null; gamepadInfo.killComboTimerId = null;
+            }, 1000);
+        } else if (!isKillComboPressed && wasKillComboPressed) { // Combo released
+            if (gamepadInfo.killComboTimerId) clearTimeout(gamepadInfo.killComboTimerId);
+            gamepadInfo.killComboHoldStartTime = null; gamepadInfo.killComboTimerId = null;
+        }
+        gamepadInfo.buttonStates[6] = btnL2; gamepadInfo.buttonStates[7] = btnR2;
+
+        // Movement (D-Pad) - updates global `keys` object, processed by `gameLoop`
+        if (robotGlobalState === "ON") { keys.w = dpadUp; keys.s = dpadDown; keys.a = dpadLeft; keys.d = dpadRight; }
+        else { if (keys.w || keys.s || keys.a || keys.d) { keys.w = false; keys.s = false; keys.a = false; keys.d = false; } }
+
+        // Camera Control (Sticks)
+        if (robotGlobalState === "ON") {
+            let yawSpeed = 0; let pitchSpeed = 0; let stickMoved = false;
+            const axisThreshold = 0.15; // Deadzone for camera sticks
+
+            if (Math.abs(leftStickX) > axisThreshold) { yawSpeed = leftStickX * CAMERA_MOVE_SPEED_PER_FRAME; stickMoved = true; }
+            if (Math.abs(rightStickY) > axisThreshold) { pitchSpeed = -rightStickY * CAMERA_MOVE_SPEED_PER_FRAME; stickMoved = true; } // Invert Y
+
+            if (stickMoved) {
+                targetYaw += yawSpeed; targetPitch += pitchSpeed;
+                targetYaw = Math.max(-90, Math.min(90, targetYaw)); // Clamp
+                targetPitch = Math.max(-90, Math.min(90, targetPitch));
+                applyGamepadHighlight('camera-slider-container');
+            }
+            sendServoCommand(CAMERA_PAN_SERVO_ID, targetYaw);
+            sendServoCommand(CAMERA_TILT_SERVO_ID, targetPitch);
+            if (window.updateCameraSliders) { window.updateCameraSliders(targetYaw, targetPitch); }
+        }
+        gamepadInfo.animationFrameId = requestAnimationFrame(processGamepadInput);
+    }
+
+    // Handles gamepad connection events
+    function handleGamepadConnected(e) {
+        const gp = e.gamepad;
+        if (gamepadInfo.index !== null) { /* Already tracking one */ return; }
+        gamepadInfo.index = gp.index;
+        gamepadStatusElement.textContent = `Gamepad: ${gp.id.split('(')[0].trim()}`;
+        gamepadStatusElement.style.color = '#8aff9d';
+        for(let i=0; i < (gp.buttons.length); i++) gamepadInfo.buttonStates[i] = false; // Init button states
+        gamepadInfo.killComboHoldStartTime = null; if (gamepadInfo.killComboTimerId) clearTimeout(gamepadInfo.killComboTimerId); gamepadInfo.killComboTimerId = null;
+        keys.w = false; keys.a = false; keys.s = false; keys.d = false; // Reset keys
+
+        if (!gamepadInfo.animationFrameId) { gamepadInfo.animationFrameId = requestAnimationFrame(processGamepadInput); }
+    }
+
+    // Handles gamepad disconnection events
+    function handleGamepadDisconnected(e) {
+        const gp = e.gamepad;
+        if (gamepadInfo.index === gp.index) { // If it's the one we were tracking
+            gamepadInfo.index = null;
+            if (gamepadInfo.animationFrameId) { cancelAnimationFrame(gamepadInfo.animationFrameId); gamepadInfo.animationFrameId = null; }
+            
+            // If robot was moving via gamepad, stop it
+            let needsStop = robotGlobalState === "ON" && (keys.w || keys.a || keys.s || keys.d);
+            keys.w = false; keys.a = false; keys.s = false; keys.d = false; // Reset keys
+            if(needsStop) { sendCommand('stop'); if(window.updateMovementUI) window.updateMovementUI('stop'); }
+
+            for(const key in gamepadInfo.buttonStates) delete gamepadInfo.buttonStates[key];
+            gamepadInfo.killComboHoldStartTime = null; if (gamepadInfo.killComboTimerId) clearTimeout(gamepadInfo.killComboTimerId); gamepadInfo.killComboTimerId = null;
+
+            gamepadStatusElement.textContent = "Gamepad Disconnected";
+            gamepadStatusElement.style.color = '#ff8a8a';
+
+            // Attempt to find another connected gamepad
+            setTimeout(() => {
+                const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+                for (let i = 0; i < gamepads.length; i++) {
+                    if (gamepads[i] && gamepads[i].connected) { handleGamepadConnected({gamepad: gamepads[i]}); return; }
+                }
+                if (gamepadInfo.index === null) { gamepadStatusElement.textContent = "No Gamepad Detected"; gamepadStatusElement.style.color = '#999'; }
+            }, 500);
+        }
+    }
+
+    // Sets up initial gamepad listeners and checks for already connected gamepads
+    function initializeGamepadController() {
+        window.addEventListener("gamepadconnected", handleGamepadConnected);
+        window.addEventListener("gamepaddisconnected", handleGamepadDisconnected);
+        const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+        for (let i = 0; i < gamepads.length; i++) {
+            if (gamepads[i] && gamepads[i].connected) { handleGamepadConnected({ gamepad: gamepads[i] }); break; }
+        }
+        if(gamepadInfo.index === null && gamepadStatusElement) {
+            gamepadStatusElement.textContent = "No Gamepad Detected (Connect/Wake & press button)";
+            gamepadStatusElement.style.color = '#999';
+        }
+    }
+    window.addEventListener('load', initializeGamepadController);
+</script>
+</body>
+</html>
