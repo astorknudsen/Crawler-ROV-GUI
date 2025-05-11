@@ -1,0 +1,86 @@
+
+from flask import Flask, render_template, request
+from gpiozero import OutputDevice, AngularServo
+from time import sleep
+
+app = Flask(__name__)
+
+# Motor control pins - organized as left and right motors
+MOTORS = {
+    'left': {
+        'forward': OutputDevice(6, active_high=True, initial_value=False),
+        'backward': OutputDevice(5, active_high=True, initial_value=False)
+    },
+    'right': {
+        'forward': OutputDevice(23, active_high=True, initial_value=False),
+        'backward': OutputDevice(24, active_high=True, initial_value=False)
+    }
+}
+
+# Initialize servos
+SERVOS = {
+    'servo1': AngularServo(22, min_angle=-90, max_angle=90),
+    'servo2': AngularServo(27, min_angle=-90, max_angle=90),
+    'servo3': AngularServo(17, min_angle=-90, max_angle=90)
+}
+
+# Set initial servo positions
+for servo in SERVOS.values():
+    servo.angle = 0  # Center position
+
+# Corrected movement commands (standard tank controls)
+MOVEMENTS = {
+    'forward': {  # W key - both motors forward
+        'left': {'forward': True, 'backward': False},
+        'right': {'forward': True, 'backward': False}
+    },
+    'backward': {  # S key - both motors backward
+        'left': {'forward': False, 'backward': True},
+        'right': {'forward': False, 'backward': True}
+    },
+    'left': {  # A key - right motor forward, left motor backward
+        'left': {'forward': False, 'backward': True},
+        'right': {'forward': True, 'backward': False}
+    },
+    'right': {  # D key - left motor forward, right motor backward
+        'left': {'forward': True, 'backward': False},
+        'right': {'forward': False, 'backward': True}
+    },
+    'stop': {  # All motors stop
+        'left': {'forward': False, 'backward': False},
+        'right': {'forward': False, 'backward': False}
+    }
+}
+
+def set_movement(direction):
+    """Set motor states based on movement direction"""
+    movement = MOVEMENTS.get(direction, MOVEMENTS['stop'])
+    for motor, pins in MOTORS.items():
+        for pin_name, state in movement[motor].items():
+            pins[pin_name].value = state
+
+def set_servo_angle(servo_id, angle):
+    """Set servo to specific angle (-90 to 90)"""
+    if servo_id in SERVOS:
+        SERVOS[servo_id].angle = angle
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/control', methods=['POST'])
+def control():
+    direction = request.form.get('direction')
+    if direction in MOVEMENTS:
+        set_movement(direction)
+    return ('', 204)
+
+@app.route('/servo', methods=['POST'])
+def servo_control():
+    servo_id = request.form.get('servo_id')
+    angle = int(request.form.get('angle'))
+    set_servo_angle(servo_id, angle)
+    return ('', 204)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
